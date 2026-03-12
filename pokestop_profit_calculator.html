@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>POKESTOP 月度盈亏计算器</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #F5F6FA; color: #1A1A2E; font-family: 'Microsoft YaHei', '微软雅黑', 'PingFang SC', sans-serif; padding: 24px; }
+h1 { text-align: center; font-size: 28px; letter-spacing: 6px; margin-bottom: 4px; color: #1A1A2E; font-weight: 900; }
+.subtitle { text-align: center; font-size: 11px; color: #999; letter-spacing: 3px; margin-bottom: 28px; }
+
+/* Language toggle */
+.lang-toggle { position: fixed; top: 18px; right: 20px; z-index: 100; display: flex; background: #fff; border: 1.5px solid #E5E7EB; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+.lang-btn { padding: 6px 14px; font-size: 12px; font-weight: 700; cursor: pointer; border: none; background: transparent; color: #aaa; font-family: 'Microsoft YaHei', sans-serif; transition: all 0.15s; }
+.lang-btn.active { background: #1A1A2E; color: #fff; }
+
+.kpi-row { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+.kpi { flex: 1; min-width: 130px; background: #fff; border: 1.5px solid #E5E7EB; border-radius: 12px; padding: 16px 18px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+.kpi-label { font-size: 10px; color: #999; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
+.kpi-value { font-size: 24px; font-weight: 900; }
+.kpi-sub { font-size: 10px; color: #bbb; margin-top: 4px; }
+
+.pnl-bar-wrap { background: #fff; border: 1.5px solid #E5E7EB; border-radius: 12px; padding: 16px 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+.pnl-bar-header { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 12px; }
+.pnl-bar-header span:first-child { color: #aaa; }
+.pnl-bar-bg { background: #F0F0F0; border-radius: 4px; height: 10px; overflow: hidden; }
+.pnl-bar-fill { height: 100%; border-radius: 4px; transition: width 0.2s, background 0.2s; }
+.pnl-note { font-size: 10px; color: #bbb; margin-top: 6px; }
+
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media(max-width: 750px) { .grid { grid-template-columns: 1fr; } }
+
+.section { background: #fff; border: 1.5px solid #E5E7EB; border-radius: 12px; padding: 18px; margin-bottom: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+.section-title { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+.section-bar { width: 4px; height: 16px; border-radius: 2px; flex-shrink: 0; }
+.section-label { font-size: 12px; font-weight: 700; letter-spacing: 1px; }
+.section-note { font-size: 10px; color: #F59E0B; background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 6px; padding: 5px 10px; margin-bottom: 14px; }
+
+.slider-wrap { margin-bottom: 14px; }
+.slider-header { display: flex; justify-content: space-between; margin-bottom: 6px; }
+.slider-lbl { font-size: 11px; color: #888; }
+.slider-val { font-size: 13px; font-weight: 700; }
+.slider-track { position: relative; height: 6px; background: #EBEBEB; border-radius: 3px; }
+.slider-fill { position: absolute; left: 0; top: 0; height: 100%; border-radius: 3px; pointer-events: none; transition: width 0.1s; }
+input[type=range] { position: absolute; top: -5px; left: 0; width: 100%; opacity: 0; cursor: pointer; height: 16px; }
+.slider-minmax { display: flex; justify-content: space-between; font-size: 10px; color: #ccc; margin-top: 3px; }
+
+.row-stat { display: flex; justify-content: space-between; font-size: 11px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #F0F0F0; }
+.row-stat span:first-child { color: #aaa; }
+.fixed-row { display: flex; justify-content: space-between; padding: 8px 0; border-top: 1px solid #F0F0F0; font-size: 11px; }
+.fixed-row span:first-child { color: #aaa; }
+
+.fixed-pct-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #F5F5F5; font-size: 11px; }
+.fixed-pct-row:last-of-type { border-bottom: none; }
+.fixed-pct-row span:first-child { color: #888; }
+.fixed-pct-badge { background: #F3F4F6; border-radius: 4px; padding: 2px 8px; font-size: 10px; font-weight: 700; margin-right: 8px; color: #555; }
+
+.breakdown-item { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+.bd-dot { width: 4px; height: 14px; border-radius: 2px; flex-shrink: 0; }
+.bd-label { font-size: 11px; color: #888; flex: 1; }
+.bd-bar-bg { background: #F0F0F0; border-radius: 2px; height: 7px; flex: 2; overflow: hidden; }
+.bd-bar-fill { height: 100%; border-radius: 2px; }
+.bd-val { font-size: 11px; font-weight: 700; min-width: 64px; text-align: right; }
+
+.footer { text-align: center; margin-top: 24px; font-size: 10px; color: #ccc; letter-spacing: 2px; }
+</style>
+</head>
+<body>
+
+<!-- Language Toggle -->
+<div class="lang-toggle">
+  <button class="lang-btn active" onclick="setLang('zh')" id="btn-zh">中文</button>
+  <button class="lang-btn" onclick="setLang('en')" id="btn-en">EN</button>
+</div>
+
+<h1>POKESTOP</h1>
+<div class="subtitle" data-zh="月度盈亏计算器 · PROFIT SIMULATOR" data-en="Monthly P&L Calculator · PROFIT SIMULATOR">月度盈亏计算器 · PROFIT SIMULATOR</div>
+
+<!-- KPI -->
+<div class="kpi-row">
+  <div class="kpi">
+    <div class="kpi-label" data-zh="月收入" data-en="Monthly Revenue">月收入</div>
+    <div class="kpi-value" id="kpi-rev" style="color:#1A1A2E">$0</div>
+    <div class="kpi-sub" data-zh="总销售额" data-en="Total Sales">总销售额</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label" data-zh="毛利润" data-en="Gross Profit">毛利润</div>
+    <div class="kpi-value" id="kpi-gross" style="color:#F59E0B">$0</div>
+    <div class="kpi-sub" id="kpi-gross-sub">毛利率 0%</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label" data-zh="固定成本" data-en="Fixed Costs">固定成本</div>
+    <div class="kpi-value" id="kpi-cost" style="color:#888">$0</div>
+    <div class="kpi-sub" data-zh="房租+人工+水电" data-en="Rent+Labor+Utilities">房租+人工+水电</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label" data-zh="净利润" data-en="Net Profit">净利润</div>
+    <div class="kpi-value" id="kpi-net">$0</div>
+    <div class="kpi-sub" id="kpi-net-sub">净利率 0%</div>
+  </div>
+</div>
+
+<!-- P&L Bar -->
+<div class="pnl-bar-wrap">
+  <div class="pnl-bar-header">
+    <span data-zh="盈亏平衡进度" data-en="Break-even Progress">盈亏平衡进度</span>
+    <span id="pnl-status" style="font-weight:700">—</span>
+  </div>
+  <div class="pnl-bar-bg"><div class="pnl-bar-fill" id="pnl-bar" style="width:0%"></div></div>
+  <div class="pnl-note" id="pnl-note">—</div>
+</div>
+
+<div class="grid">
+<!-- Left Column -->
+<div>
+
+  <!-- Fixed Costs -->
+  <div class="section">
+    <div class="section-title"><div class="section-bar" style="background:#6366F1"></div><span class="section-label" style="color:#6366F1" data-zh="固定支出" data-en="Fixed Expenses">固定支出</span></div>
+    <div class="slider-wrap">
+      <div class="slider-header"><span class="slider-lbl" data-zh="房租 RENT" data-en="Rent">房租 RENT</span><span class="slider-val" style="color:#6366F1" id="v-rent">$2,000</span></div>
+      <div class="slider-track"><div class="slider-fill" id="f-rent" style="background:#6366F1;width:0%"></div><input type="range" min="2000" max="6000" step="100" value="2000" oninput="update('rent',this)"></div>
+      <div class="slider-minmax"><span>$2,000</span><span>$6,000</span></div>
+    </div>
+    <div class="slider-wrap">
+      <div class="slider-header"><span class="slider-lbl" data-zh="人工 LABOR" data-en="Labor">人工 LABOR</span><span class="slider-val" style="color:#6366F1" id="v-labor">$2,000</span></div>
+      <div class="slider-track"><div class="slider-fill" id="f-labor" style="background:#6366F1;width:0%"></div><input type="range" min="2000" max="5000" step="100" value="2000" oninput="update('labor',this)"></div>
+      <div class="slider-minmax"><span>$2,000</span><span>$5,000</span></div>
+    </div>
+    <div class="fixed-row"><span data-zh="水电网（固定）" data-en="Utilities (fixed)">水电网（固定）</span><span style="color:#888;font-weight:700">$1,000</span></div>
+    <div class="row-stat"><span data-zh="总固定成本" data-en="Total Fixed Cost">总固定成本</span><span style="color:#6366F1;font-weight:700" id="s-fixed">$5,000</span></div>
+  </div>
+
+  <!-- Distributor -->
+  <div class="section">
+    <div class="section-title"><div class="section-bar" style="background:#8B5CF6"></div><span class="section-label" style="color:#8B5CF6" data-zh="Distributor 货" data-en="Distributor Stock">Distributor 货</span></div>
+    <div class="section-note" data-zh="⚠ 仅限 ETB — 未计算其他产品" data-en="⚠ ETB Only — Other products not included">⚠ 仅限 ETB — 未计算其他产品</div>
+    <div class="slider-wrap">
+      <div class="slider-header"><span class="slider-lbl" data-zh="进货箱数 BOXES" data-en="Boxes Ordered">进货箱数 BOXES</span><span class="slider-val" style="color:#8B5CF6" id="v-distBoxes">20</span></div>
+      <div class="slider-track"><div class="slider-fill" id="f-distBoxes" style="background:#8B5CF6;width:10%"></div><input type="range" min="5" max="150" step="1" value="20" oninput="update('distBoxes',this)"></div>
+      <div class="slider-minmax"><span>5</span><span>150</span></div>
+    </div>
+    <div class="slider-wrap">
+      <div class="slider-header"><span class="slider-lbl" data-zh="每盒成本 COST/BOX" data-en="Cost per Box">每盒成本 COST/BOX</span><span class="slider-val" style="color:#8B5CF6" id="v-distCost">$60</span></div>
+      <div class="slider-track"><div class="slider-fill" id="f-distCost" style="background:#8B5CF6;width:25%"></div><input type="range" min="40" max="120" step="5" value="60" oninput="update('distCost',this)"></div>
+      <div class="slider-minmax"><span>$40</span><span>$120</span></div>
+    </div>
+    <div class="slider-wrap">
+      <div class="slider-header"><span class="slider-lbl" data-zh="利润率 MARGIN" data-en="Margin">利润率 MARGIN</span><span class="slider-val" style="color:#8B5CF6" id="v-distMargin">150%</span></div>
+      <div class="slider-track"><div class="slider-fill" id="f-distMargin" style="background:#8B5CF6;width:64%"></div><input type="range" min="60" max="200" step="5" value="150" oninput="update('distMargin',this)"></div>
+      <div class="slider-minmax"><span>60%</span><span>200%</span></div>
+    </div>
+    <div class="row-stat"><span data-zh="收入 / 毛利" data-en="Revenue / Profit">收入 / 毛利</span><span style="color:#8B5CF6;font-weight:700"><span id="s-distRev">$0</span> / <span id="s-distProfit">$0</span></span></div>
+  </div>
+
+  <!-- Walmart -->
+  <div class="section">
+    <div class="section-title"><div class="section-bar" style="background:#06B6D4"></div><span class="section-label" style="color:#06B6D4" data-zh="Walmart 补货" data-en="Walmart Restock">Walmart 补货</span></div>
+    <div class="section-note" data-zh="⚠ 仅限 ETB — 未计算其他产品" data-en="⚠ ETB Only — Other products not included">⚠ 仅限 ETB — 未计算其他产品</div>
+    <div class="slider-wrap">
+      <div class="slider-header"><span class="slider-lbl" data-zh="进货箱数 BOXES" data-en="Boxes">进货箱数 BOXES</span><span class="slider-val" style="color:#06B6D4" id="v-wmBoxes">100</span></div>
+      <div class="slider-track"><div class="slider-fill" id="f-wmBoxes" style="background:#06B6D4;width:29%"></div><input type="range" min="20" max="300" step="5" value="100" oninput="update('wmBoxes',this)"></div>
+      <div class="slider-minmax"><span>20</span><span>300</span></div>
+    </div>
+    <div class="slider-wrap">
+      <div class="slider-header"><span class="slider-lbl" data-zh="每盒成本 COST/BOX" data-en="Cost per Box">每盒成本 COST/BOX</span><span class="slider-val" style="color:#06B6D4" id="v-wmCost">$105</span></div>
+      <div class="slider-track"><div class="slider-fill" id="f-wmCost" style="background:#06B6D4;width:100%"></div><input type="range" min="95" max="105" step="5" value="105" oninput="update('wmCost',this)"></div>
+      <div class="slider-minmax"><span>$95</span><span>$105</span></div>
+    </div>
+    <div class="slider-wrap">
+      <div class="slider-header"><span class="slider-lbl" data-zh="利润率 MARGIN" data-en="Margin">利润率 MARGIN</span><span class="slider-val" style="color:#06B6D4" id="v-wmMargin">50%</span></div>
+      <div class="slider-track"><div class="slider-fill" id="f-wmMargin" style="background:#06B6D4;width:37%"></div><input type="range" min="20" max="100" step="5" value="50" oninput="update('wmMargin',this)"></div>
+      <div class="slider-minmax"><span>20%</span><span>100%</span></div>
+    </div>
+    <div class="row-stat"><span data-zh="收入 / 毛利" data-en="Revenue / Profit">收入 / 毛利</span><span style="color:#06B6D4;font-weight:700"><span id="s-wmRev">$0</span> / <span id="s-wmProfit">$0</span></span></div>
+  </div>
+
+  <!-- Events -->
+  <div class="section">
+    <div class="section-title"><div class="section-bar" style="background:#22C55E"></div><span class="section-label" style="color:#22C55E" data-zh="赛事收入" data-en="Event Revenue">赛事收入</span></div>
+    <div class="slider-wrap">
+      <div class="slider-header"><span class="slider-lbl" data-zh="每场平均人数" data-en="Avg Players per Event">每场平均人数</span><span class="slider-val" style="color:#22C55E" id="v-players">10</span></div>
+      <div class="slider-track"><div class="slider-fill" id="f-players" style="background:#22C55E;width:0%"></div><input type="range" min="10" max="32" step="1" value="10" oninput="update('players',this)"></div>
+      <div class="slider-minmax"><span>10</span><span>32</span></div>
+    </div>
+    <div class="fixed-row"><span data-zh="每周场数（固定 4游戏×4场）" data-en="Events/week (fixed 4 games×4)">每周场数（固定 4游戏×4场）</span><span style="color:#888;font-weight:700">16</span></div>
+    <div class="fixed-row"><span data-zh="报名费（固定）" data-en="Entry Fee (fixed)">报名费（固定）</span><span style="color:#888;font-weight:700">$10</span></div>
+    <div class="fixed-row"><span data-zh="赛事毛利率（固定）" data-en="Event Margin (fixed)">赛事毛利率（固定）</span><span style="color:#888;font-weight:700">20%</span></div>
+    <div class="row-stat"><span data-zh="月收入 / 毛利" data-en="Monthly Rev / Profit">月收入 / 毛利</span><span style="color:#22C55E;font-weight:700"><span id="s-eventRev">$0</span> / <span id="s-eventProfit">$0</span></span></div>
+  </div>
+
+</div>
+
+<!-- Right Column -->
+<div>
+
+  <!-- Fixed % Categories -->
+  <div class="section">
+    <div class="section-title"><div class="section-bar" style="background:#F59E0B"></div><span class="section-label" style="color:#F59E0B" data-zh="固定比例品类（占产品销售额）" data-en="Fixed-Ratio Categories (% of Product Sales)">固定比例品类（占产品销售额）</span></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid #F0F0F0;">
+      <span style="font-size:10px;color:#bbb;text-transform:uppercase;letter-spacing:1px;" data-zh="品类" data-en="Category">品类</span>
+      <span style="font-size:10px;color:#bbb;text-align:right;" data-zh="销售额" data-en="Revenue">销售额</span>
+      <span style="font-size:10px;color:#bbb;text-align:right;" data-zh="毛利" data-en="Gross Profit">毛利</span>
+    </div>
+    <div class="fixed-pct-row">
+      <span data-zh="简中 " data-en="CN Product ">简中 <span class="fixed-pct-badge">5% · 100%</span></span>
+      <div style="display:flex;gap:12px;align-items:center">
+        <span style="color:#999;font-size:11px;min-width:62px;text-align:right" id="s-cn-rev">$0</span>
+        <span style="color:#F59E0B;font-weight:700;font-size:12px;min-width:62px;text-align:right" id="s-cn">$0</span>
+      </div>
+    </div>
+    <div class="fixed-pct-row">
+      <span data-zh="日版 " data-en="JP Product ">日版 <span class="fixed-pct-badge">10% · 20%</span></span>
+      <div style="display:flex;gap:12px;align-items:center">
+        <span style="color:#999;font-size:11px;min-width:62px;text-align:right" id="s-jp-rev">$0</span>
+        <span style="color:#EC4899;font-weight:700;font-size:12px;min-width:62px;text-align:right" id="s-jp">$0</span>
+      </div>
+    </div>
+    <div class="fixed-pct-row">
+      <span data-zh="卡具 " data-en="Accessories ">卡具 <span class="fixed-pct-badge">1% · 500%</span></span>
+      <div style="display:flex;gap:12px;align-items:center">
+        <span style="color:#999;font-size:11px;min-width:62px;text-align:right" id="s-acc-rev">$0</span>
+        <span style="color:#14B8A6;font-weight:700;font-size:12px;min-width:62px;text-align:right" id="s-acc">$0</span>
+      </div>
+    </div>
+    <div class="fixed-pct-row">
+      <span data-zh="单卡 " data-en="Singles ">单卡 <span class="fixed-pct-badge">15% · 20%</span></span>
+      <div style="display:flex;gap:12px;align-items:center">
+        <span style="color:#999;font-size:11px;min-width:62px;text-align:right" id="s-single-rev">$0</span>
+        <span style="color:#A78BFA;font-weight:700;font-size:12px;min-width:62px;text-align:right" id="s-single">$0</span>
+      </div>
+    </div>
+    <div class="row-stat">
+      <span data-zh="固定品类合计" data-en="Fixed Categories Total">固定品类合计</span>
+      <div style="display:flex;gap:12px;">
+        <span style="color:#999;font-size:11px;min-width:62px;text-align:right" id="s-fixed-cats-rev">$0</span>
+        <span style="color:#F59E0B;font-weight:700;min-width:62px;text-align:right" id="s-fixed-cats">$0</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Breakdown -->
+  <div class="section">
+    <div class="section-title"><div class="section-bar" style="background:#ccc"></div><span class="section-label" style="color:#888" data-zh="毛利来源分解" data-en="Gross Profit Breakdown">毛利来源分解</span></div>
+    <div id="breakdown"></div>
+  </div>
+
+  <!-- Summary Chart -->
+  <div class="section">
+    <div class="section-title"><div class="section-bar" style="background:#F59E0B"></div><span class="section-label" style="color:#888" data-zh="汇总 — 销售额 vs 毛利" data-en="Summary — Revenue vs Gross Profit">汇总 — 销售额 vs 毛利</span></div>
+    <div style="display:flex;gap:16px;margin-bottom:10px;font-size:11px;color:#888;">
+      <div style="display:flex;align-items:center;gap:6px;"><div style="width:12px;height:12px;background:#CBD5E1;border-radius:2px;border:1.5px solid #94A3B8"></div><span data-zh="销售额" data-en="Revenue">销售额</span></div>
+      <div style="display:flex;align-items:center;gap:6px;"><div style="width:12px;height:12px;background:#6366F1;border-radius:2px"></div><span data-zh="毛利" data-en="Gross Profit">毛利</span></div>
+    </div>
+    <canvas id="chartSummary" height="200"></canvas>
+  </div>
+
+</div>
+</div>
+
+<div class="footer" data-zh="POKESTOP · 仅供内部参考" data-en="POKESTOP · INTERNAL USE ONLY">POKESTOP · 仅供内部参考</div>
+
+<script>
+// ── i18n ─────────────────────────────────────────────────────
+let lang = 'zh';
+
+function setLang(l) {
+  lang = l;
+  document.getElementById('btn-zh').classList.toggle('active', l === 'zh');
+  document.getElementById('btn-en').classList.toggle('active', l === 'en');
+  document.querySelectorAll('[data-zh]').forEach(el => {
+    // For elements that contain a child badge span, preserve it
+    const badge = el.querySelector('.fixed-pct-badge');
+    if (badge) {
+      const badgeHTML = badge.outerHTML;
+      el.innerHTML = el.getAttribute('data-' + l) + badgeHTML;
+    } else {
+      el.textContent = el.getAttribute('data-' + l);
+    }
+  });
+  // Update dynamic text
+  recalc();
+}
+
+// ── Chart ─────────────────────────────────────────────────────
+const cSummary = new Chart(document.getElementById('chartSummary'), {
+  type: 'bar',
+  data: {
+    labels: ['Dist.','Walmart','简中/CN','日版/JP','卡具/Acc','单卡/Singles','赛事/Events'],
+    datasets: [
+      {
+        label: 'Revenue',
+        data: [0,0,0,0,0,0,0],
+        backgroundColor: ['#8B5CF644','#06B6D444','#F59E0B44','#EC489944','#14B8A644','#A78BFA44','#22C55E44'],
+        borderColor:     ['#8B5CF6',  '#06B6D4',  '#F59E0B',  '#EC4899',  '#14B8A6',  '#A78BFA',  '#22C55E'],
+        borderWidth: 1.5, borderRadius: 4, borderSkipped: false
+      },
+      {
+        label: 'Gross Profit',
+        data: [0,0,0,0,0,0,0],
+        backgroundColor: ['#8B5CF6','#06B6D4','#F59E0B','#EC4899','#14B8A6','#A78BFA','#22C55E'],
+        borderRadius: 4, borderSkipped: false
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    animation: { duration: 120 },
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: c => ` ${c.dataset.label}: $${Math.round(c.raw).toLocaleString()}` } }
+    },
+    scales: {
+      x: { grid: { color: '#F0F0F0' }, ticks: { color: '#999', font: { family: 'Microsoft YaHei', size: 10 } } },
+      y: { grid: { color: '#F0F0F0' }, ticks: { color: '#bbb', font: { family: 'Microsoft YaHei', size: 9 },
+        callback: v => '$' + (Math.abs(v) >= 1000 ? (v/1000).toFixed(1)+'k' : Math.round(v)) } }
+    }
+  }
+});
+
+// ── State ─────────────────────────────────────────────────────
+const state = {
+  rent: 2000, labor: 2000,
+  distBoxes: 20, distCost: 60, distMargin: 150,
+  wmBoxes: 100, wmCost: 105, wmMargin: 50,
+  eventsWeek: 16, players: 10
+};
+
+const ranges = {
+  rent: [2000,6000,'$'], labor: [2000,5000,'$'],
+  distBoxes: [5,150,''], distCost: [40,120,'$'], distMargin: [60,200,'%'],
+  wmBoxes: [20,300,''], wmCost: [95,105,'$'], wmMargin: [20,100,'%'],
+  eventsWeek: [1,16,''], players: [10,32,''],
+};
+
+function fmt(n) { return '$' + Math.round(n).toLocaleString(); }
+
+// ── Calc ──────────────────────────────────────────────────────
+function calc(s) {
+  const dRev  = s.distBoxes * s.distCost * (1 + s.distMargin / 100);
+  const dPro  = s.distBoxes * s.distCost * (s.distMargin / 100);
+  const wRev  = s.wmBoxes * s.wmCost * (1 + s.wmMargin / 100);
+  const wPro  = s.wmBoxes * s.wmCost * (s.wmMargin / 100);
+  const eRev  = 16 * 4 * s.players * 10;
+  const ePro  = eRev * 0.20;
+  const prodRev  = dRev + wRev;
+  const cnRev    = prodRev * 0.05;
+  const jpRev    = prodRev * 0.10;
+  const accRev   = prodRev * 0.01;
+  const siRev    = prodRev * 0.15;
+  const cnPro    = cnRev  * (1.00 / 2.00);
+  const jpPro    = jpRev  * (0.20 / 1.20);
+  const accPro   = accRev * (5.00 / 6.00);
+  const siPro    = siRev  * (0.20 / 1.20);
+  const totalRev   = dRev + wRev + cnRev + jpRev + accRev + siRev + eRev;
+  const totalGross = dPro + wPro + cnPro + jpPro + accPro + siPro + ePro;
+  const totalCost  = s.rent + s.labor + 1000;
+  return { dRev,dPro,wRev,wPro,eRev,ePro,cnRev,cnPro,jpRev,jpPro,accRev,accPro,siRev,siPro,totalRev,totalGross,totalCost,net:totalGross-totalCost };
+}
+
+function update(key, input) {
+  state[key] = Number(input.value);
+  const [min, max, unit] = ranges[key];
+  document.getElementById('f-' + key).style.width = ((state[key]-min)/(max-min)*100).toFixed(1)+'%';
+  const prefix = unit === '$' ? '$' : '';
+  const suffix = key.includes('Margin') ? '%' : '';
+  document.getElementById('v-' + key).textContent = prefix + state[key].toLocaleString() + suffix;
+  recalc();
+}
+
+// ── Render ────────────────────────────────────────────────────
+function recalc() {
+  const r = calc(state);
+  const gp = r.totalRev > 0 ? (r.totalGross / r.totalRev * 100).toFixed(1) : 0;
+  const np = r.totalRev > 0 ? (r.net / r.totalRev * 100).toFixed(1) : 0;
+  const isZH = lang === 'zh';
+
+  // KPIs
+  document.getElementById('kpi-rev').textContent   = fmt(r.totalRev);
+  document.getElementById('kpi-gross').textContent  = fmt(r.totalGross);
+  document.getElementById('kpi-gross-sub').textContent = (isZH ? '毛利率 ' : 'Gross Margin ') + gp + '%';
+  document.getElementById('kpi-cost').textContent   = fmt(r.totalCost);
+  const ne = document.getElementById('kpi-net');
+  ne.textContent = fmt(r.net);
+  ne.style.color = r.net >= 0 ? '#16A34A' : '#DC2626';
+  document.getElementById('kpi-net-sub').textContent = (isZH ? '净利率 ' : 'Net Margin ') + np + '%';
+
+  // P&L bar
+  const cov = r.totalCost > 0 ? Math.min(100, r.totalGross / r.totalCost * 100) : 0;
+  document.getElementById('pnl-bar').style.width    = cov.toFixed(1) + '%';
+  document.getElementById('pnl-bar').style.background = r.net >= 0 ? '#22C55E' : '#EF4444';
+  document.getElementById('pnl-status').textContent = r.net >= 0
+    ? (isZH ? '▲ 盈利 ' : '▲ Profit ') + fmt(r.net)
+    : (isZH ? '▼ 亏损 ' : '▼ Loss ')   + fmt(Math.abs(r.net));
+  document.getElementById('pnl-status').style.color = r.net >= 0 ? '#16A34A' : '#DC2626';
+  document.getElementById('pnl-note').textContent   = isZH
+    ? `需达到 ${fmt(r.totalCost)} 毛利才能盈亏平衡 · 当前毛利覆盖率 ${cov.toFixed(0)}%`
+    : `Need ${fmt(r.totalCost)} gross profit to break even · Current coverage ${cov.toFixed(0)}%`;
+
+  // Section stats
+  document.getElementById('s-fixed').textContent     = fmt(r.totalCost);
+  document.getElementById('s-distRev').textContent   = fmt(r.dRev);
+  document.getElementById('s-distProfit').textContent= fmt(r.dPro);
+  document.getElementById('s-wmRev').textContent     = fmt(r.wRev);
+  document.getElementById('s-wmProfit').textContent  = fmt(r.wPro);
+  document.getElementById('s-eventRev').textContent  = fmt(r.eRev);
+  document.getElementById('s-eventProfit').textContent= fmt(r.ePro);
+
+  document.getElementById('s-cn-rev').textContent   = fmt(r.cnRev);
+  document.getElementById('s-cn').textContent        = fmt(r.cnPro);
+  document.getElementById('s-jp-rev').textContent   = fmt(r.jpRev);
+  document.getElementById('s-jp').textContent        = fmt(r.jpPro);
+  document.getElementById('s-acc-rev').textContent  = fmt(r.accRev);
+  document.getElementById('s-acc').textContent       = fmt(r.accPro);
+  document.getElementById('s-single-rev').textContent= fmt(r.siRev);
+  document.getElementById('s-single').textContent    = fmt(r.siPro);
+  document.getElementById('s-fixed-cats-rev').textContent = fmt(r.cnRev+r.jpRev+r.accRev+r.siRev);
+  document.getElementById('s-fixed-cats').textContent     = fmt(r.cnPro+r.jpPro+r.accPro+r.siPro);
+
+  // Breakdown
+  const items = [
+    [isZH?'Distributor':'Distributor', r.dRev,  r.dPro,  '#8B5CF6'],
+    [isZH?'Walmart':'Walmart',         r.wRev,  r.wPro,  '#06B6D4'],
+    [isZH?'简中产品':'CN Products',    r.cnRev, r.cnPro, '#F59E0B'],
+    [isZH?'日版产品':'JP Products',    r.jpRev, r.jpPro, '#EC4899'],
+    [isZH?'卡具':'Accessories',        r.accRev,r.accPro,'#14B8A6'],
+    [isZH?'单卡':'Singles',            r.siRev, r.siPro, '#A78BFA'],
+    [isZH?'赛事':'Events',             r.eRev,  r.ePro,  '#22C55E'],
+  ];
+  document.getElementById('breakdown').innerHTML = items.map(([l, rv, pv, c]) => {
+    const w = r.totalGross > 0 ? Math.min(100, pv / r.totalGross * 100).toFixed(1) : 0;
+    return `<div class="breakdown-item">
+      <div class="bd-dot" style="background:${c}"></div>
+      <span class="bd-label">${l}</span>
+      <div class="bd-bar-bg"><div class="bd-bar-fill" style="width:${w}%;background:${c}"></div></div>
+      <span style="font-size:10px;color:#bbb;min-width:58px;text-align:right">${fmt(rv)}</span>
+      <span class="bd-val" style="color:${c}">${fmt(pv)}</span>
+    </div>`;
+  }).join('');
+
+  // Summary chart
+  cSummary.data.datasets[0].data = items.map(i => Math.max(0, i[1]));
+  cSummary.data.datasets[1].data = items.map(i => Math.max(0, i[2]));
+  cSummary.update();
+}
+
+recalc();
+</script>
+</body>
+</html>
